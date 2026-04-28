@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub User Explorer | Fetch API + Async/Await</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+
+        body {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 1rem;
+            background: #0d1117;
+            color: #e6edf3;
+        }
+
+        h1 {
+            text-align: center;
+            color: #f0f6fc;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 0.5rem;
+            margin: 2rem 0;
+            justify-content: center;
+        }
+
+        input {
+            flex: 1;
+            max-width: 300px;
+            padding: 0.75rem;
+            border-radius: 8px;
+            border: 1px solid #30363d;
+            background: #1f2429;
+            color: white;
+            font-size: 1rem;
+        }
+
+        button {
+            background: #238636;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        button:hover {
+            background: #2ea043;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            font-style: italic;
+            color: #8b949e;
+        }
+
+        .error {
+            background: #da3633;
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .profile-card {
+            background: #161b22;
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .avatar {
+            width: 100px;
+            border-radius: 50%;
+        }
+
+        .profile-info h2 {
+            margin: 0 0 0.5rem;
+        }
+
+        .stats {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .stat {
+            background: #21262d;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+        }
+
+        .repos-section,
+        .gists-section {
+            margin-top: 2rem;
+        }
+
+        .repo-list,
+        .gist-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .repo-item,
+        .gist-item {
+            background: #161b22;
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            border-left: 4px solid #238636;
+        }
+
+        .repo-name,
+        .gist-id {
+            font-weight: bold;
+            color: #58a6ff;
+        }
+
+        hr {
+            border-color: #30363d;
+            margin: 2rem 0;
+        }
+
+        footer {
+            text-align: center;
+            font-size: 0.8rem;
+            color: #8b949e;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>GitHub User Explorer</h1>
+    <div class="search-box">
+        <input type="text" id="usernameinput" placeholder="e.g., octocat, ebenezerdon" value="octocat">
+        <button class="fetchBtn" id="fetchBtn">Explore</button>
+    </div>
+
+    <div id="loadingMsg" class="loading" style="display: none;">Fetching data from GitHub...</div>
+    <div id="result"></div>
+    <footer>Powered by GitHub REST API | No auth needed for public data</footer>
+    <script>
+                const usernameinput = document.getElementById('usernameinput')
+        const fetchBtn = document.getElementById('fetchBtn')
+        const resultDiv = document.getElementById('result')
+        const loadingDiv = document.getElementById('loadingMsg')
+
+        function showLoading(show) {
+            loadingDiv.style.display = show ? 'block' : 'none';
+        }
+
+        function displayError(message) {
+            resultDiv.innerHTML = `<div class="error">${message}</div>`;
+        }
+
+        async function fetchUserData(username) {
+            const url = `http://localhost:3001/api/github/${username}`;
+            const res = await fetch(url);
+            if (!res.ok) {
+                if (res.status === 404) throw new Error('User not found');
+                if (res.status === 429) throw new Error('Rate limit exceeded. Try later.');
+                throw new Error(`Server error: ${res.status}`);
+            }
+            const data = await res.json();
+            return data; // { profile, repos, gists }
+        }
+
+        fetchBtn.addEventListener('click', async () => {
+            const username = usernameinput.value.trim();
+            if (!username) return;
+
+            showLoading(true);
+            resultDiv.innerHTML = '';
+            try {
+                const data = await fetchUserData(username);
+                const user = data.profile;
+                const repos = data.repos;
+                const gists = data.gists;
+
+                // Render profile (same as before)
+                let profileHtml = `
+                <div class="profile-card">
+                    <img class="avatar" src="${user.avatar_url}" alt="avatar">
+                    <div class="profile-info">
+                        <h2>${user.name || user.login}</h2>
+                        <p>${user.bio || 'No bio provided'}</p>
+                        <div class="stats">
+                            <span class="stat"> Repos: ${user.public_repos}</span>
+                            <span class="stat"> Followers: ${user.followers}</span>
+                            <span class="stat"> Following: ${user.following}</span>
+                            <span class="stat"> Gists: ${user.public_gists}</span>
+                        </div>
+                    </div>
+                </div>
+                `;
+
+                // Render repos
+                let reposHtml = `<div class="repos-section"><h3>Recent Repositories</h3><div class="repo-list">`;
+                if (repos.length === 0) {
+                    reposHtml += `<p>No public repositories.</p>`;
+                } else {
+                    repos.forEach(repo => {
+                        reposHtml += `
+                    <div class="repo-item">
+                        <span class="repo-name">📌 ${repo.name}</span>
+                        <span> ⭐ ${repo.stargazers_count}</span>
+                        <span> ${repo.language || 'N/A'}</span>
+                        <br><small>${repo.description || 'No description'}</small>
+                    </div>
+                        `;
+                    });
+                }
+                reposHtml += `</div></div>`;
+
+                // Render gists
+                let gistsHtml = `<div class="gists-section"><h3>Recent Gists</h3><div class="gist-list">`;
+                if (gists.length === 0) {
+                    gistsHtml += `<p>No public gists.</p>`;
+                } else {
+                    gists.forEach(gist => {
+                        const firstFile = Object.keys(gist.files)[0];
+                        gistsHtml += `
+                            <div class="gist-item">
+                                <span class="gist-id"> 📄 ${firstFile}</span>
+                                <br><small>${gist.description || 'No description'}</small>
+                            </div>
+                        `;
+                    });
+                }
+                gistsHtml += `</div></div>`;
+
+                resultDiv.innerHTML = profileHtml + reposHtml + gistsHtml;
+            } catch (error) {
+                console.error(error);
+                if (error.message === 'User not found') {
+                    displayError(`User "${username}" not found on GitHub.`);
+                } else {
+                    displayError(`Error: ${error.message}`);
+                }
+            } finally {
+                showLoading(false);
+            }
+        });
+    </script>
+</body>
+
+</html>
